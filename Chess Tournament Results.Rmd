@@ -1,0 +1,26 @@
+---
+title: "Chess Tournament Results"
+author: "Johnny Maldonado"
+date: "9/22/2026"
+output: html_document
+---
+
+## Introduction
+
+The purpose of this project is to transform a semi-structured text file containing chess tournament results into a clean dataset that can be exported as a CSV file. The final dataset will include each player's name, state, total points, pre-tournament rating, and the average pre-tournament rating of their opponents.
+
+To complete the project, I will extract the relevant player information from the text file and organize it into a structured format. The opponent numbers listed in each round will be matched back to the corresponding players so their pre-tournament ratings can be identified. I will then calculate the average opponent pre-tournament rating for each player, verify the results, and export the completed dataset as a CSV file.
+
+### Libraries
+Libraries TBD
+```{r library imports}
+
+```
+
+### Data import
+import .txt file here 
+```{r data import}
+
+```
+
+
