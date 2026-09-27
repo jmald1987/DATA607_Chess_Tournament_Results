@@ -1,0 +1,169 @@
+---
+title: "Chess Tournament Result"
+author: "Johnny Maldonado"
+date: "9/22/2026"
+format: html
+editor: visual
+---
+## Introduction
+
+The purpose of this project is to transform a semi-structured text file containing chess tournament results into a clean dataset that can be exported as a CSV file. The final dataset will include each player's name, state, total points, pre-tournament rating, and the average pre-tournament rating of their opponents.
+
+To complete the project, I will extract the relevant player information from the text file and organize it into a structured format. The opponent numbers listed in each round will be matched back to the corresponding players so their pre-tournament ratings can be identified. I will then calculate the average opponent pre-tournament rating for each player, verify the results, and export the completed dataset as a CSV file.
+
+### Libraries
+
+The following libraries will be used to clean, transform, and organize the tournament data.
+
+```{r library import}
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(readr)
+```
+
+```{r data import}
+tournament_url <- "https://raw.githubusercontent.com/jmald1987/DATA607_Chess_Tournament_Results/refs/heads/main/tournamentinfo.txt"
+
+tournament_data <- read_lines(tournament_url)
+
+head(tournament_data)
+```
+### Extract Player Records
+
+The tournament file contains multiple types of rows, including headers, separator lines, player information, and rating information. The player rows can be identified because they begin with a player number, while the following information row begins with the player's state.
+
+```{r extract-players}
+player_lines <- tournament_data[str_detect(tournament_data, "^\\s*\\d+\\s*\\|")]
+rating_lines <- tournament_data[str_detect(tournament_data, "^\\s*[A-Z]{2}\\s*\\|")]
+
+length(player_lines)
+length(rating_lines)
+```
+The rows can be separated using the pipe character as the delimiter.
+```{r player-rows}
+player_parts <- str_split_fixed(player_lines, "\\|", 11)
+
+players <- tibble(
+  player_num = as.integer(str_trim(player_parts[, 1])),
+  player_name = str_trim(player_parts[, 2]),
+  total_points = as.numeric(str_trim(player_parts[, 3])),
+  round_1 = str_trim(player_parts[, 4]),
+  round_2 = str_trim(player_parts[, 5]),
+  round_3 = str_trim(player_parts[, 6]),
+  round_4 = str_trim(player_parts[, 7]),
+  round_5 = str_trim(player_parts[, 8]),
+  round_6 = str_trim(player_parts[, 9]),
+  round_7 = str_trim(player_parts[, 10])
+)
+
+head(players)
+```
+
+
+The second row for each player contains the player's state and rating information. The pre-tournament rating appears immediately after
+
+```{r parse state and pre-ttournament rating}
+rating_parts <- str_split_fixed(rating_lines, "\\|", 11)
+
+players <- players %>%
+  mutate(
+    state = str_trim(rating_parts[, 1]),
+    pre_rating = as.integer(
+      str_match(rating_parts[, 2], "R:\\s*(\\d+)")[, 2]
+    )
+  )
+
+players %>%
+  select(player_num, player_name, state, total_points, pre_rating) %>%
+  head()
+```
+Each round result contains the result of the game followed by the opponent's player number. The opponent numbers will be extracted and converted into a long format so that they can be matched to the opponent's pre-tournament rating.
+```{r opponents}
+opponents <- players %>%
+  select(player_num, starts_with("round_")) %>%
+  pivot_longer(
+    cols = starts_with("round_"),
+    names_to = "round",
+    values_to = "result"
+  ) %>%
+  mutate(
+    opponent_num = as.integer(str_extract(result, "\\d+"))
+  ) %>%
+  filter(!is.na(opponent_num))
+
+head(opponents)
+
+```
+
+
+The opponent number can now be matched to the corresponding player's pre-tournament rating.
+
+```{r opponent ratings}
+opponents <- opponents %>%
+  left_join(
+    players %>%
+      select(
+        opponent_num = player_num,
+        opponent_pre_rating = pre_rating
+      ),
+    by = "opponent_num"
+  )
+
+head(opponents)
+```
+### Calculate Average Opponent Rating
+
+The average pre-tournament rating of each player's opponents is calculated using the opponents they actually played.
+
+```{r average opponent rating}
+average_opponent_rating <- opponents %>%
+  group_by(player_num) %>%
+  summarise(
+    avg_opponent_pre_rating = round(
+      mean(opponent_pre_rating, na.rm = TRUE)
+    )
+  )
+
+head(average_opponent_rating)
+```
+### Final Dataset
+
+The calculated opponent averages are joined back to the player information. Only the fields required for the final CSV file are retained.
+
+```{r chess tournament results}
+final_results <- players %>%
+  left_join(
+    average_opponent_rating,
+    by = "player_num"
+  ) %>%
+  transmute(
+    Player_Name = player_name,
+    State = state,
+    Total_Points = total_points,
+    Pre_Rating = pre_rating,
+    Average_Opponent_Pre_Rating = avg_opponent_pre_rating
+  )
+
+final_results
+
+```
+
+## Verification
+
+The assignment provides Gary Hua as an example. His pre-tournament rating is 1794 and his opponents' average pre-tournament rating should be approximately 1605.
+
+
+```{r verification}
+final_results %>%
+  filter(Player_Name == "GARY HUA")
+```
+
+```{r export csv}
+write_csv(
+  final_results,
+  "chess_tournament_results.csv")
+```
+
+## Conclusion
+This project transformed a semi-structured chess tournament text file into a clean and structured dataset. Player information and opponent numbers were extracted from the original file, and the opponent numbers were used to match each opponent with their pre-tournament rating. These ratings were then used to calculate the average opponent rating for each player. The final dataset contains the required player name, state, total points, pre-tournament rating, and average opponent pre-tournament rating and was exported as a CSV file.
